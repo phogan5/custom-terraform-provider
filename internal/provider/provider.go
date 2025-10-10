@@ -1,3 +1,12 @@
+// provider.go contains an implementation of the provider.Provider
+// interface as the starting point for the provider. The interface
+// requires the following methods:
+//  - Metadata defines the provider name
+//  - Schema defines the schema for the provider configuration
+//  - Configure defines shared clients for data sources and resources
+//  - Datasources defines data sources
+//  - Resources defines resources
+
 package provider
 
 import (
@@ -7,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Ensure the implementation satisfies the expected interface.
@@ -21,6 +31,13 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+// hashicupsProviderModel maps schema data to a Go type.
+type hashicupsProviderModel struct {
+	Host     types.String `tfsdk:"host"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 }
 
 // hashicupsProvider is the provider implementation, followed by struct methods.
@@ -39,7 +56,20 @@ func (p *hashicupsProvider) Metadata(_ context.Context, _ provider.MetadataReque
 
 // Schema defines the provider-level schema for configuration data.
 func (p *hashicupsProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{}
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"host": schema.StringAttribute{
+				Optional: true,
+			},
+			"username": schema.StringAttribute{
+				Optional: true,
+			},
+			"password": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
+			},
+		},
+	}
 }
 
 // Configure prepares a HashiCups API client for data sources and resources.
