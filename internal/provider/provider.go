@@ -36,7 +36,7 @@ func New(version string) func() provider.Provider {
 	}
 }
 
-// hashicupsProviderModel maps schema data to a Go type.
+// hashicupsProviderModel maps provider schema data to a Go type.
 type hashicupsProviderModel struct {
 	Host     types.String `tfsdk:"host"`
 	Username types.String `tfsdk:"username"`
@@ -85,12 +85,13 @@ func (p *hashicupsProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	// Define errors for missing config attributes
+	// If practitioner provided a configuration value for any of the
+	// attributes, it must be a known value.
 
 	if config.Host.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("host"),
-			"Unknown Hashicups API Host",
+			"Unknown HashiCups API Host",
 			"The provider cannot create the HashiCups API client as there is an unknown configuration value for the HashiCups API host. "+
 				"Either target apply the source of the value first, set the value statically in the configuration, or use the HASHICUPS_HOST environment variable.",
 		)
@@ -101,7 +102,7 @@ func (p *hashicupsProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("username"),
 			"Unknown HashiCups API Username",
 			"The provider cannot create the HashiCups API client as there is an unknown configuration value for the HashiCups API username. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the HASHICORP_USERNAME environment variable. ",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the HASHICUPS_USERNAME environment variable.",
 		)
 	}
 
@@ -114,7 +115,6 @@ func (p *hashicupsProvider) Configure(ctx context.Context, req provider.Configur
 		)
 	}
 
-	// If an error was identified, exit and raise
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -175,11 +175,11 @@ func (p *hashicupsProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	// Create a HashiCups client using the configuration values
+	// Create a new HashiCups client using the configuration values
 	client, err := hashicups.NewClient(&host, &username, &password)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to create HashiCups API Client",
+			"Unable to Create HashiCups API Client",
 			"An unexpected error occurred when creating the HashiCups API client. "+
 				"If the error is not clear, please contact the provider developers.\n\n"+
 				"HashiCups Client Error: "+err.Error(),
