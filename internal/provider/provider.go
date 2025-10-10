@@ -195,7 +195,10 @@ func (p *hashicupsProvider) Configure(ctx context.Context, req provider.Configur
 
 // DataSources defines the data sources implemented in the provider.
 func (p *hashicupsProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	// []func() denotes the return of a slice of functions that, when called, return a datasource.Datasource.
+	return []func() datasource.DataSource{
+		NewCoffeesDataSource,
+	}
 }
 
 // Resources defines the resources implemented in the provider.
