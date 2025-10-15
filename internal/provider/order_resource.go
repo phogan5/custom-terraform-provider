@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp-demoapp/hashicups-client-go"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -66,6 +68,9 @@ func (r *orderResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"last_updated": schema.StringAttribute{
 				Computed: true,
@@ -140,7 +145,7 @@ func (r *orderResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	// Generate API request body from plan
-	var items []hashicups.OrderItem
+	var items []hashicups.OrderItem // OrderItem api
 	for _, item := range plan.Items {
 		items = append(items, hashicups.OrderItem{
 			Coffee: hashicups.Coffee{
@@ -151,7 +156,7 @@ func (r *orderResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	// Create new order
-	order, err := r.client.CreateOrder(items)
+	order, err := r.client.CreateOrder(items) // CreateOrder api
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating order",
@@ -232,10 +237,87 @@ func (r *orderResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 // Update updates the resource and sets the updated terraform state on success.
 func (r *orderResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// ...
+	// Retrieve values from plan
+	var plan orderResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Generate API request body from plan
+	var hashicupsItems []hashicups.OrderItem
+	for _, item := range plan.Items {
+		hashicupsItems = append(hashicupsItems, hashicups.OrderItem{
+			Coffee: hashicups.Coffee{
+				ID: int(item.Coffee.ID.ValueInt64()),
+			},
+			Quantity: int(item.Quantity.ValueInt64()),
+		})
+	}
+
+	// Update existing order
+	_, err := r.client.UpdateOrder(plan.ID.ValueString(), hashicupsItems)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating Hashicups order",
+			"Could not update order, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	// Fetch updated items from GetOrder as UpdateOrder items are not
+	// populated
+	order, err := r.client.GetOrder(plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading Hashicups order",
+			"Could not read Hashicups order ID "+plan.ID.ValueString()+": "+err.Error(),
+		)
+		return
+	}
+
+	// Update resource state with updated items and timestamp
+	plan.Items = []orderItemModel{}
+	for _, item := range order.Items {
+		plan.Items = append(plan.Items, orderItemModel{
+			Coffee: orderItemCoffeeModel{
+				ID:          types.Int64Value(int64(item.Coffee.ID)),
+				Name:        types.StringValue(item.Coffee.Name),
+				Teaser:      types.StringValue(item.Coffee.Teaser),
+				Description: types.StringValue(item.Coffee.Description),
+				Price:       types.Float64Value(item.Coffee.Price),
+				Image:       types.StringValue(item.Coffee.Image),
+			},
+			Quantity: types.Int64Value(int64(item.Quantity)),
+		})
+	}
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the terraform state on success.
 func (r *orderResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// ...
+	// Retrieve values from state
+	var state orderResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Delete existing order resource
+	err := r.client.DeleteOrder(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error deleting Hashicups order",
+			"Could not delete order, unexpected error: "+err.Error(),
+		)
+		return
+	}
 }
